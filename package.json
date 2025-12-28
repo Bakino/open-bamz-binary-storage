@@ -1,0 +1,17 @@
+{
+  "name": "open-bamz-binary-storage",
+  "version": "1.0.0",
+  "main": "index.mjs",
+  "type": "module",
+  "keywords": [],
+  "author": "",
+  "license": "MIT",
+  "description": "Open BamZ binary storage plugin",
+  "dependencies": {
+    "express": "^5.2.1",
+    "fs-extra": "^11.3.3"
+  },
+  "devDependencies": {
+    "@types/node": "^24.10.1"
+  }
+}
