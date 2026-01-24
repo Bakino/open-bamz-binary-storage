@@ -36,6 +36,7 @@ function applyValue({value, elInput}){
     const elPreview = /** @type {HTMLDivElement} */ (elInput.querySelector(".bamz-binary-preview")) ;
     const elIcons = /** @type {HTMLDivElement} */ (elInput.querySelector(".bamz-binary-icons")) ;
     const elInfos = elInput.querySelector(".bamz-binary-infos") ;
+    const elInputField = elInput.querySelector("input") ;
     if(value){
         elIcons.style.display = "flex" ;
         elInput.value = value ;
@@ -43,11 +44,17 @@ function applyValue({value, elInput}){
         elPreview.style.width = "35px";
         elPreview.style.marginRight = "5px";
         elPreview.style.fontSize = "40px";
+        if(value.index_id){
+            // value from database
+            elInputField.value = null; //reset file input
+        }
     }else{
+        elInputField.value = null; //reset file input
         elInfos.innerHTML = "" ;
         elIcons.style.display = "none" ;  
         elPreview.style.width = "0px";
         elPreview.style.marginRight = "0px";
+        elInput.value = null ;
     }
     preview({elPreview, value}) ;
 }

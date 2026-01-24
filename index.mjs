@@ -427,6 +427,13 @@ export const initPlugin = async ({ app, graphql, hasCurrentPlugin, loadPluginDat
                 extensionPath: "/plugin/open-bamz-binary-storage/lib/db-value-binary.mjs",
             })
         }
+
+        if(pluginsData?.["open-bamz-viewz"]?.pluginSlots?.viewzExtensions){
+            pluginsData?.["open-bamz-viewz"]?.pluginSlots?.viewzExtensions.push( {
+                plugin: "open-bamz-binary-storage",
+                extensionPath: "/plugin/open-bamz-binary-storage/lib/viewz-binary.mjs"
+            })
+        }
    });
 
     return {
