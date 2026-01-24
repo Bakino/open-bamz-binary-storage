@@ -58,6 +58,8 @@ export default {
         if(type === "bamz_binary"){
             const elBinary = /** @type {HTMLDivElement} */ (document.createElement("DIV")) ;
             elBinary.style.display = "flex" ;
+            elBinary.style.flexWrap = "wrap" ;
+            elBinary.style.alignItems = "center" ;
 
             // icons
             const elIcons = /** @type {HTMLDivElement} */ (document.createElement("DIV")) ;
@@ -119,7 +121,8 @@ export default {
             const elInput = /** @type {HTMLInputElement} */ (document.createElement("INPUT")) ;
             elInput.id = el.id+"_input" ;
             elInput.type = "file" ;
-            elInput.addEventListener("change", async ()=>{
+            elInput.addEventListener("change", async (ev)=>{
+                ev.stopPropagation() ;
                 elInfos.innerHTML = "..."
                 elInput.setCustomValidity("File is loading") ;
                 try{
@@ -179,5 +182,23 @@ export default {
             this.defaultExtension.setValue({el, type, elInput, value}) ;
         }
     }, 
+
+    setReadOnly: function({el, type, elInput, readOnly, /*label, type, schema, table,column, el, elLabel, elInput, value*/}){
+        if(type === "bamz_binary" && elInput){
+            const inputElm = elInput.querySelector("input[type='file']") ;
+            const btReset = elInput.querySelector(".bamz-binary-reset") ;
+            if(readOnly){
+                inputElm.style.display = "none" ;
+                btReset.style.display = "none" ;
+            }else{
+                inputElm.style.display = "" ;
+                btReset.style.display = "" ;
+            }
+        }else{
+            this.defaultExtension.setReadOnly({el, type, elInput, readOnly}) ;
+        }
+    },
+
+
     customCss: "https://cdn.jsdelivr.net/npm/file-icon-vectors@1.0.0/dist/file-icon-vivid.min.css"
 }
