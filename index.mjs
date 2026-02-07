@@ -335,7 +335,9 @@ export const initPlugin = async ({ app, graphql, hasCurrentPlugin, loadPluginDat
     const router = express.Router();
 
     router.get("/binary/:id{/:disposition}", async (req, res, next) => {
-        if(!hasCurrentPlugin(req.appName)){ return next() ;}
+        if(!hasCurrentPlugin(req.appName)){ 
+            return next() ;
+        }
         const id = req.params.id;
         const range = req.headers.range ;
 
@@ -343,74 +345,75 @@ export const initPlugin = async ({ app, graphql, hasCurrentPlugin, loadPluginDat
         const result = await runQuery({database: req.appName}, `SELECT index.* FROM binary_storage.binary_index index 
             JOIN binary_storage.binary_storage s ON s.hash = index.hash
             WHERE index.id=$1`, [id]);
-        if(result.rows.length === 0){ return res.status(404) ; }
+        if(result.rows.length === 0){ 
+            return res.status(404) ; 
+        }
 
 
     
-        if(result.rows.length === 1){
 
-            const binaryIndex = result.rows[0] ; 
+        const binaryIndex = result.rows[0] ; 
 
-            let sqlData = `SELECT data FROM binary_storage.binary_storage WHERE hash=$1 AND data IS NOT NULL` ;
+        let sqlData = `SELECT data FROM binary_storage.binary_storage WHERE hash=$1 AND data IS NOT NULL` ;
 
-            let start, end;
-            let isRange = false;
-            if(range){
-                let array = range.split(/bytes=([0-9]*)-([0-9]*)/);
-                start = parseInt(array[1]);
-                end = parseInt(array[2]);
-                if(!isNaN(end)) {
-                    start = isNaN(start) ? 0 : start;
-                    end = isNaN(end) ? (binaryIndex.size - 1) : end;
-        
-                    if (start >= end) {
-                        res.status(416).send('Requested Range Not Satisfiable');
-                    }
-                    isRange = true;
-                    sqlData = `SELECT SUBSTRING(data from ${start + 1} for ${end - start}) as data FROM binary_storage.binary_storage WHERE hash=$1 AND data IS NOT NULL` ;
+        let start, end;
+        let isRange = false;
+        if(range){
+            let array = range.split(/bytes=([0-9]*)-([0-9]*)/);
+            start = parseInt(array[1]);
+            end = parseInt(array[2]);
+            if(!isNaN(end)) {
+                start = isNaN(start) ? 0 : start;
+                end = isNaN(end) ? (binaryIndex.size - 1) : end;
+    
+                if (start >= end) {
+                    res.status(416).send('Requested Range Not Satisfiable');
                 }
+                isRange = true;
+                sqlData = `SELECT SUBSTRING(data from ${start + 1} for ${end - start}) as data FROM binary_storage.binary_storage WHERE hash=$1 AND data IS NOT NULL` ;
             }
-
-            let data;
-            const resultData = await runQuery({database: req.appName}, sqlData, [binaryIndex.hash]);
-            if(resultData.rows.length === 0){
-                const settings = (await runQuery({database: req.appName}, `SELECT * FROM binary_storage.settings`)).rows[0] ;
-                if(settings?.store_on_disk){
-                    const storagePath = process.env.BINARY_STORAGE_PATH ;
-                
-                    const pathOfFile = path.join(storagePath, req.appName, binaryIndex.hash.substring(0,2), binaryIndex.hash) ;
-
-                    if(isRange){
-                        let fd ;
-                        try{
-                            const fd = await open(pathOfFile, "r") ;
-                            data = await fd.read({buffer: Buffer.alloc(end - start), position: start, length: end - start}) ;
-                        }finally{
-                            if(fd){
-                                // @ts-ignore
-                                await fd.close() ;
-                            }
-                        }
-                    }else{
-                        data = await readFile(pathOfFile) ;
-                    }
-                }
-            }else{
-                data = resultData.rows[0].data ; 
-            }
-
-            res.setHeader("Content-Type", binaryIndex.mimetype);
-            res.setHeader("Accept-Ranges","bytes") ;
-            if(isRange){
-                res.setHeader("Content-Range", `bytes ${start}-${end}/${binaryIndex.size}`) ;
-                res.setHeader("Content-Length", (end - start)) ;
-                res.setHeader("Cache-Control", "no-cache") ;
-            }else{
-                res.setHeader("Content-Length", binaryIndex.size) ;
-                res.setHeader("Content-Disposition", `${req.params.disposition||"inline"}; filename="${binaryIndex.filename}"`);
-            }
-            res.send(data) ;
         }
+
+        let data;
+        const resultData = await runQuery({database: req.appName}, sqlData, [binaryIndex.hash]);
+        if(resultData.rows.length === 0){
+            const settings = (await runQuery({database: req.appName}, `SELECT * FROM binary_storage.settings`)).rows[0] ;
+            if(settings?.store_on_disk){
+                const storagePath = process.env.BINARY_STORAGE_PATH ;
+            
+                const pathOfFile = path.join(storagePath, req.appName, binaryIndex.hash.substring(0,2), binaryIndex.hash) ;
+
+                if(isRange){
+                    let fd ;
+                    try{
+                        const fd = await open(pathOfFile, "r") ;
+                        data = await fd.read({buffer: Buffer.alloc(end - start), position: start, length: end - start}) ;
+                    }finally{
+                        if(fd){
+                            // @ts-ignore
+                            await fd.close() ;
+                        }
+                    }
+                }else{
+                    data = await readFile(pathOfFile) ;
+                }
+            }
+        }else{
+            data = resultData.rows[0].data ; 
+        }
+
+        res.setHeader("Content-Type", binaryIndex.mimetype);
+        res.setHeader("Accept-Ranges","bytes") ;
+        if(isRange){
+            res.setHeader("Content-Range", `bytes ${start}-${end}/${binaryIndex.size}`) ;
+            res.setHeader("Content-Length", (end - start)) ;
+            res.setHeader("Cache-Control", "no-cache") ;
+        }else{
+            res.setHeader("Content-Length", binaryIndex.size) ;
+            res.setHeader("Content-Disposition", `${req.params.disposition||"inline"}; filename="${binaryIndex.filename}"`);
+        }
+        res.send(data) ;
+
     }) ;
 
 
