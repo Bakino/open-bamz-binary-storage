@@ -127,6 +127,11 @@ export default {
             elInfos.className = "bamz-binary-infos"
             const elInput = /** @type {HTMLInputElement} */ (document.createElement("INPUT")) ;
             elInput.id = el.id+"_input" ;
+            // @ts-ignore
+            if(window.cordova && window.device && window.device.platform === "Android"){
+                //force camera for android
+                elInput.capture = "camera" ;
+            }
             elInput.type = "file" ;
             elInput.addEventListener("change", async (ev)=>{
                 ev.stopPropagation() ;
