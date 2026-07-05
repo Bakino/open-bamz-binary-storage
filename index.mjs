@@ -175,9 +175,16 @@ FOR EACH ROW EXECUTE FUNCTION binary_storage.delete_not_used_binary()`);
 
                 if (!payload.data) continue; // already stored
 
-                const bin = base64ToBytea(payload.data);
+                /*const bin = base64ToBytea(payload.data);
                 const size = bin.length;
-                const hash = sha256Hex(bin);
+                const hash = sha256Hex(bin);*/
+                const result = plv8.execute(
+                    "SELECT decode($1, 'base64') AS b, octet_length(decode($1, 'base64')) AS size, encode(digest(decode($1, 'base64'), 'sha256'), 'hex') AS h",
+                    [payload.data]
+                )[0];
+                const bin   = result.b;
+                const size  = result.size;   // calculé côté PostgreSQL
+                const hash  = result.h;
 
                 plv8.execute(\`
                     INSERT INTO binary_storage.binary_storage (hash, data)

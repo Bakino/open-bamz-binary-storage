@@ -6,6 +6,111 @@ const toBase64 = file => new Promise((resolve, reject) => {
     reader.onerror = reject;
 });
 
+/**
+ * Reduces an image file based on two optional constraints:
+ *   - maxWidth: maximum width in pixels (height is scaled proportionally)
+ *   - maxSize:  maximum file size in bytes
+ *
+ * Strategy:
+ *   1. If maxWidth is set and the image is wider, scale it down to maxWidth first.
+ *   2. If maxSize is set and the result still exceeds it, decrease JPEG quality
+ *      in steps from 0.85 down to 0.1.
+ *   3. If minimum quality is still not enough, reduce dimensions by 20% and retry
+ *      from step 2, until the image is small enough or scale drops below 5%.
+ *
+ * Always outputs JPEG to allow quality control via canvas.toDataURL.
+ *
+ * @param {File} file       - the original image file
+ * @param {number} maxWidth - maximum width in pixels (0 = no constraint)
+ * @param {number} maxSize  - maximum size in bytes (0 = no constraint)
+ * @returns {Promise<{ base64: string, mimetype: string }>}
+ */
+function reduceImage(file, maxWidth, maxSize) {
+    return new Promise((resolve, reject) => {
+        // Estimate byte size from base64 string length
+        const base64ByteSize = (b64) => Math.round(b64.length * 3 / 4);
+
+        const reader = new FileReader();
+        reader.onerror = reject;
+        reader.onload = (e) => {
+            const img = new Image();
+            img.onerror = reject;
+            img.onload = () => {
+                const originalWidth = img.naturalWidth;
+                const originalHeight = img.naturalHeight;
+
+                // Compute the initial scale factor from maxWidth constraint
+                let scaleFactor = 1;
+                if (maxWidth && originalWidth > maxWidth) {
+                    scaleFactor = maxWidth / originalWidth;
+                    console.log("Resize image from "+originalWidth+" to "+maxWidth+" (ratio "+scaleFactor+")")
+                }
+
+                // If no maxSize constraint and no resizing needed, return original base64
+                if (!maxSize && scaleFactor === 1) {
+                    // @ts-ignore
+                    const originalBase64 = e.target.result.substring(
+                        // @ts-ignore
+                        e.target.result.indexOf("base64,") + "base64,".length
+                    );
+                    resolve({ base64: originalBase64, mimetype: file.type });
+                    return;
+                }
+
+                // Always encode as JPEG to allow quality adjustment
+                const outputMime = "image/jpeg";
+                const canvas = document.createElement("canvas");
+                const ctx = canvas.getContext("2d");
+
+                const tryEncode = () => {
+                    const newW = Math.round(originalWidth * scaleFactor);
+                    const newH = Math.round(originalHeight * scaleFactor);
+                    canvas.width = newW;
+                    canvas.height = newH;
+                    ctx.clearRect(0, 0, newW, newH);
+                    ctx.drawImage(img, 0, 0, newW, newH);
+
+                    // If no maxSize constraint, a single encode at full quality is enough
+                    if (!maxSize) {
+                        const dataUrl = canvas.toDataURL(outputMime, 0.85);
+                        const base64 = dataUrl.substring(dataUrl.indexOf("base64,") + "base64,".length);
+                        resolve({ base64, mimetype: outputMime });
+                        return;
+                    }
+
+                    // Decrease quality from 0.85 to 0.1 until under maxSize
+                    let quality = 0.85;
+                    let dataUrl, base64;
+                    do {
+                        dataUrl = canvas.toDataURL(outputMime, quality);
+                        base64 = dataUrl.substring(dataUrl.indexOf("base64,") + "base64,".length);
+                        if (base64ByteSize(base64) <= maxSize) {
+                            console.log("Resized to "+maxSize+" using quality compression");
+                            resolve({ base64, mimetype: outputMime });
+                            return;
+                        }
+                        quality = Math.round((quality - 0.1) * 10) / 10;
+                    } while (quality >= 0.1);
+
+                    // Minimum quality not enough — reduce dimensions by 20% and retry
+                    scaleFactor *= 0.8;
+                    if (scaleFactor < 0.05) {
+                        // Extreme edge case: return best result anyway
+                        console.log("Resized to "+maxSize+" using quality compression and size reduce");
+                        resolve({ base64, mimetype: outputMime });
+                        return;
+                    }
+                    tryEncode();
+                };
+
+                tryEncode();
+            };
+            // @ts-ignore
+            img.src = e.target.result;
+        };
+        reader.readAsDataURL(file);
+    });
+}
 
 export async function preview({elPreview, value}){
     elPreview.innerHTML = "" ;
@@ -150,12 +255,25 @@ export default {
                             elBinary.value = null;
                         }else{
                             //elInfos.innerHTML = file.name+" ("+file.type+")" ;
-                            const base64 = await toBase64(file);
+
+                            let base64;
+                            let mimetype = file.type;
+
+                            if(el.hasAttribute("db-reduce-image") && file.type.startsWith("image/")) {
+                                const maxSize  = Number(el.getAttribute("db-max-image-size"))  || 0;
+                                const maxWidth = Number(el.getAttribute("db-max-image-width")) || 0;
+                                const result = await reduceImage(file, maxWidth, maxSize);
+                                base64   = result.base64;
+                                mimetype = result.mimetype;
+                            } else {
+                                base64 = await toBase64(file);
+                            }
+
                             // @ts-ignore
                             elBinary.value = {
                                 data: base64,
                                 filename: file.name,
-                                mimetype: file.type
+                                mimetype: mimetype
                             } ;
                         }
                         elBinary.dispatchEvent(new Event("change", { bubbles: true })) ;
